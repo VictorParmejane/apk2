@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="#323232"
+    android:padding="12dp"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <TextView
+        android:id="@+id/txtPergunta"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="Deseja ativar a IA de voz?"
+        android:textColor="@android:color/white"
+        android:textSize="16sp" />
+
+    <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/btnNao"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Agora não"
+        android:textAllCaps="false"
+        android:textColor="@android:color/white"
+        android:backgroundTint="#757575"
+        android:layout_marginEnd="8dp" />
+
+    <androidx.appcompat.widget.AppCompatButton
+        android:id="@+id/btnAtivar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Ativar IA"
+        android:textAllCaps="false"
+        android:textColor="@android:color/white"
+        android:backgroundTint="#4CAF50" />
+</LinearLayout>
