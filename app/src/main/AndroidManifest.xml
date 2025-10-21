@@ -2,10 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.vigilancia">
 
-    <!-- Permissões -->
+    <!-- 🔹 Permissões necessárias -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 🔹 ForegroundService com uso de microfone -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
     <application
         android:allowBackup="true"
@@ -24,7 +27,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Serviço de voz (IA sempre ativa) -->
+        <!-- 🔹 Serviço global de voz -->
         <service
             android:name=".VoiceService"
             android:exported="false"
