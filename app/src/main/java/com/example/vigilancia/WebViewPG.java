@@ -29,28 +29,32 @@ public class WebViewPG extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_web_view);
 
-        // Configura toolbar
+        // ---- Toolbar ----
         Toolbar toolbar = findViewById(R.id.toolbar);
         toolbar.setTitle("Voltar à Tabela");
         toolbar.setTitleTextColor(getResources().getColor(android.R.color.white));
         toolbar.setNavigationIcon(androidx.appcompat.R.drawable.abc_ic_ab_back_material);
         toolbar.setNavigationOnClickListener(v -> finish());
 
-        // Configura WebView
+        // ---- WebView ----
         webView = findViewById(R.id.webView);
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setDomStorageEnabled(true);
+        webView.getSettings().setJavaScriptCanOpenWindowsAutomatically(true);
+        webView.getSettings().setSupportMultipleWindows(true);
+
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                Uri uri = request.getUrl();
-                view.loadUrl(uri.toString());
-                return false;
+                // garante que o histórico de navegação fique dentro da WebView
+                view.loadUrl(request.getUrl().toString());
+                return true;
             }
         });
+
         webView.loadUrl(SITE_URL);
 
-        // 🔹 Receiver que reage aos comandos da IA de voz (enviados via broadcast)
+        // ---- Receiver de comandos de voz ----
         receiverComando = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -59,26 +63,28 @@ public class WebViewPG extends AppCompatActivity {
                     processarComando(comando.toLowerCase(Locale.ROOT));
             }
         };
-
         registrarReceiverCompat(receiverComando, new IntentFilter("IA_COMANDO"));
+
+        // ---- Receiver para fechar app ----
+        BroadcastReceiver fecharReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                finishAffinity();
+            }
+        };
+        registrarReceiverCompat(fecharReceiver, new IntentFilter("FECHAR_APP"));
     }
 
-    /** 🔹 Registro compatível com API 24 → 34 (sem warnings) */
+    // Registro compatível com todas as APIs
     private void registrarReceiverCompat(BroadcastReceiver receiver, IntentFilter filter) {
         try {
-            if (Build.VERSION.SDK_INT >= 33) {
-                // Android 13+
+            if (Build.VERSION.SDK_INT >= 33)
                 registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
-            } else if (Build.VERSION.SDK_INT >= 26) {
-                // Android 8–12 → usa reflexão
+            else if (Build.VERSION.SDK_INT >= 26) {
                 Method m = Context.class.getMethod(
-                        "registerReceiver",
-                        BroadcastReceiver.class,
-                        IntentFilter.class,
-                        int.class);
+                        "registerReceiver", BroadcastReceiver.class, IntentFilter.class, int.class);
                 m.invoke(this, receiver, filter, Context.RECEIVER_NOT_EXPORTED);
             } else {
-                // Android 7 ou inferior
                 registerReceiver(receiver, filter);
             }
         } catch (Exception e) {
@@ -86,27 +92,51 @@ public class WebViewPG extends AppCompatActivity {
         }
     }
 
-    /** 🔹 Executa as ações conforme o comando reconhecido */
+    /** Processa os comandos vindos por voz */
     private void processarComando(String comando) {
-        if (comando.contains("abrir protocolo")) {
-            executarJavaScript("Abrir Protocolo");
-            Toast.makeText(this, "🔹 Abrindo protocolo...", Toast.LENGTH_SHORT).show();
-        }
-        else if (comando.contains("consultar protocolo")) {
-            executarJavaScript("Consultar Protocolo");
-            Toast.makeText(this, "🔹 Consultando protocolo...", Toast.LENGTH_SHORT).show();
-        }
-        else if (comando.contains("voltar") || comando.contains("voltar tabela")) {
-            Toast.makeText(this, "↩️ Voltando à tabela...", Toast.LENGTH_SHORT).show();
-            finish();
-        }
-        else if (comando.contains("sair") || comando.contains("encerrar")) {
-            Toast.makeText(this, "👋 Encerrando aplicativo...", Toast.LENGTH_SHORT).show();
-            finishAffinity();
+        try {
+            // --- Ações do site ---
+            if (comando.contains("abrir protocolo"))
+                executarJavaScript("Abrir Protocolo");
+            else if (comando.contains("consultar protocolo"))
+                executarJavaScript("Consultar Protocolo");
+            else if (comando.contains("ver detalhes"))
+                executarJavaScript("Ver Detalhes");
+            else if (comando.contains("solicitar serviço") || comando.contains("solicitar servico"))
+                executarJavaScript("Solicitar Serviço");
+            else if (comando.equals("solicitar") || comando.contains("solicitar "))
+                executarJavaScript("Solicitar");
+            else if (comando.contains("filtrar"))
+                executarJavaScript("Filtrar");
+            else if (comando.contains("consultar"))
+                executarJavaScript("Consultar");
+            else if (comando.contains("fechar"))
+                executarJavaScript("Fechar");
+
+                // --- Voltar à tabela ---
+            else if (comando.contains("voltar à tabela") || comando.contains("voltar a tabela")) {
+                Intent i = new Intent(this, Table.class);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(i);
+                finish();
+            }
+
+            // --- Voltar apenas dentro da WebView ---
+            else if (comando.equals("voltar")) {
+                if (webView.canGoBack()) {
+                    webView.goBack();
+                } else {
+                    // Tenta achar botão "Voltar" no DOM se o site for SP‑App
+                    executarJavaScript("voltar");
+                    Toast.makeText(this, "🔹 Tentando voltar na página...", Toast.LENGTH_SHORT).show();
+                }
+            }
+        } catch (Exception e) {
+            Toast.makeText(this, "Erro ao executar comando: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 
-    /** 🔹 Injeção de JavaScript que simula clique em botões/links com o texto informado */
+    /** Executa cliques em botões/links no DOM (case‑insensitive) */
     private void executarJavaScript(String textoBotao) {
         String script =
                 "javascript:(function(){"
