@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/main"
     android:orientation="vertical"
     android:gravity="center"
@@ -14,4 +15,5 @@
         android:text="Loading"
         android:textSize="24sp"
         android:textColor="#000000" />
+
 </LinearLayout>

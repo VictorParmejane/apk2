@@ -8,7 +8,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 🔹 ForegroundService com uso de microfone -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE"
         tools:ignore="ForegroundServicesPolicy" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
@@ -18,11 +19,21 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_vigilancia_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+        android:theme="@style/AppTheme">
 
-        <activity android:name=".WebViewPG" android:exported="false" />
-        <activity android:name=".Table" android:exported="false" />
-        <activity android:name=".MainActivity" android:exported="true">
+        <!-- 🔹 Suas telas -->
+        <activity
+            android:name=".WebViewPG"
+            android:exported="false" />
+
+        <activity
+            android:name=".Table"
+            android:exported="false" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/AppTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
