@@ -75,7 +75,20 @@ public class Table extends AppCompatActivity {
             @Override public void afterTextChanged(Editable s){}
         });
 
-        listView.setOnItemClickListener((p,v,pos,id)->abrirRoteiro(adapter.getItem(pos)));
+        // === Clique em item da lista ===
+        listView.setOnItemClickListener((p, v, pos, id) -> {
+            String item = adapter.getItem(pos);
+            if (item != null && item.equalsIgnoreCase("Roteiro 1")) {
+                // 🔹 Se for o "Roteiro 1", abre diretamente o link desejado dentro da WebView
+                Intent i = new Intent(this, WebViewPG.class);
+                i.putExtra("url_custom", "https://protocolo.rondonopolis.mt.gov.br/embed/form/6");
+                i.putExtra("roteiro_nome", "Roteiro 1");
+                startActivity(i);
+            } else {
+                // 🔹 Outros roteiros seguem comportamento padrão
+                abrirRoteiro(item);
+            }
+        });
 
         fabVoice.setOnClickListener(v -> alternarAssistente());
 
@@ -175,7 +188,18 @@ public class Table extends AppCompatActivity {
         snackbar.show();
     }
 
+    // === Comando por voz (inclui "abrir roteiro 1") ===
     private void processarComando(String comando){
+        // --- Caso específico: abrir roteiro 1 dentro da WebView ---
+        if (comando.contains("abrir roteiro 1")) {
+            Intent i = new Intent(this, WebViewPG.class);
+            i.putExtra("url_custom", "https://protocolo.rondonopolis.mt.gov.br/embed/form/6");
+            i.putExtra("roteiro_nome", "Roteiro 1");
+            startActivity(i);
+            return;
+        }
+
+        // --- Demais comandos padrão ---
         if(comando.contains("abrir roteiro")){
             for(String roteiro:roteiroList){
                 String numero=roteiro.replaceAll("\\D+","");
