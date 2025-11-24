@@ -54,7 +54,7 @@ public class VoiceService extends Service {
                 .build();
         startForeground(NOTIF_ID, n);
     }
-
+    /**Update
     /** cria apenas um recognizer e mantém reiniciando */
     private void iniciarReconhecimento() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) { stopSelf(); return; }
