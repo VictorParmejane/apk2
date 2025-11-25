@@ -4,17 +4,14 @@ plugins {
 
 android {
     namespace = "com.example.vigilancia"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 34     // ou 35
 
     defaultConfig {
         applicationId = "com.example.vigilancia"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -27,6 +24,7 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -34,6 +32,7 @@ android {
 }
 
 dependencies {
+    implementation("ai.picovoice:porcupine-android:3.0.3")
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.activity)

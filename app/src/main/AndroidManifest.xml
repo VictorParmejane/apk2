@@ -1,16 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
     package="com.example.vigilancia">
 
-    <!-- 🔹 Permissões necessárias -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- 🔹 ForegroundService com uso de microfone -->
-    <uses-permission
-        android:name="android.permission.FOREGROUND_SERVICE"
-        tools:ignore="ForegroundServicesPolicy" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
     <application
@@ -21,29 +14,42 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
-        <!-- 🔹 Suas telas -->
-        <activity
-            android:name=".WebViewPG"
-            android:exported="false" />
-
-        <activity
-            android:name=".Table"
-            android:exported="false" />
-
         <activity
             android:name=".MainActivity"
-            android:exported="true"
-            android:theme="@style/AppTheme">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- 🔹 Serviço global de voz -->
+        <activity android:name=".Table" android:exported="false" />
+        <activity android:name=".WebViewPG" android:exported="false" />
+
+        <service
+            android:name=".PorcupineWakeService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
         <service
             android:name=".VoiceService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+
+        <!-- NOVO: Serviço de Acessibilidade -->
+        <service
+            android:name=".VoiceAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true"
+            android:label="Vigilância"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_config" />
+        </service>
+
     </application>
 </manifest>
