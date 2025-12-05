@@ -4,13 +4,15 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.provider.Settings;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
@@ -18,6 +20,7 @@ import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+
 import java.util.ArrayList;
 import java.util.Locale;
 
@@ -25,6 +28,7 @@ public class VoiceService extends Service {
 
     private static final String CHANNEL_ID = "IA_VOZ_CANAL";
     private static final int NOTIF_ID = 101;
+
     private SpeechRecognizer recognizer;
     private Intent recIntent;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -35,35 +39,52 @@ public class VoiceService extends Service {
         super.onCreate();
         criarNotificacao();
         iniciarReconhecimento();
-        // watchdog: garante que volte a escutar se parar
-        handler.postDelayed(verificador, 4000);
+        // Watchdog para garantir que o serviço não morra
+        handler.postDelayed(watchdog, 4000);
     }
 
     private void criarNotificacao() {
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel ch = new NotificationChannel(
-                    CHANNEL_ID, "IA de Voz", NotificationManager.IMPORTANCE_LOW);
-            nm.createNotificationChannel(ch);
+                    CHANNEL_ID,
+                    "IA de Voz",
+                    NotificationManager.IMPORTANCE_LOW
+            );
+            if (nm != null) {
+                nm.createNotificationChannel(ch);
+            }
         }
+
         Notification n = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-                .setContentTitle("Assistente ativo")
-                .setContentText("Ouvindo comandos de voz…")
+                .setSmallIcon(android.R.drawable.ic_btn_speak_now) // Certifique-se de ter um ícone válido
+                .setContentTitle("Vigilância Ativa")
+                .setContentText("Ouvindo comandos...")
                 .setOngoing(true)
                 .build();
+
         startForeground(NOTIF_ID, n);
     }
 
-    /** cria apenas um recognizer e mantém reiniciando */
     private void iniciarReconhecimento() {
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) { stopSelf(); return; }
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            stopSelf();
+            return;
+        }
+
+        if (recognizer != null) {
+            try {
+                recognizer.destroy();
+            } catch (Exception ignored) {}
+        }
+
         recognizer = SpeechRecognizer.createSpeechRecognizer(this);
         recIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-        recIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        recIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         recIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pt-BR");
         recIntent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
+        recIntent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
 
         recognizer.setRecognitionListener(new RecognitionListener() {
             @Override public void onReadyForSpeech(Bundle params) {}
@@ -75,94 +96,176 @@ public class VoiceService extends Service {
             @Override public void onEvent(int eventType, Bundle params) {}
 
             @Override
-            public void onResults(Bundle results) {
-                if (!ativo) return;
-                ArrayList<String> falas = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                if (falas != null && !falas.isEmpty()) {
-                    processarComando(falas.get(0).toLowerCase(Locale.ROOT));
+            public void onError(int error) {
+                // Reinicia se der erro (ex: tempo esgotado ou barulho)
+                if (ativo) {
+                    reiniciarOuvinte(1000);
                 }
-                recognizer.startListening(recIntent); // mesma instância
             }
 
             @Override
-            public void onError(int error) {
-                if (ativo) recognizer.startListening(recIntent);
+            public void onResults(Bundle results) {
+                if (!ativo) return;
+
+                ArrayList<String> falas = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+
+                if (falas != null && !falas.isEmpty()) {
+                    String texto = falas.get(0).toLowerCase(Locale.ROOT).trim();
+                    processarComando(texto);
+                }
+                // Continua ouvindo
+                reiniciarOuvinte(500);
             }
         });
 
-        recognizer.startListening(recIntent);
+        try {
+            recognizer.startListening(recIntent);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
-    /** watchdog: a cada 4 s tenta reiniciar se nada estiver ouvindo */
-    private final Runnable verificador = new Runnable() {
-        @Override public void run() {
+    // Auxiliar para reiniciar sem travar a thread
+    private void reiniciarOuvinte(int delay) {
+        handler.postDelayed(() -> {
+            if (ativo && recognizer != null) {
+                try {
+                    recognizer.startListening(recIntent);
+                } catch (Exception ignored) {}
+            }
+        }, delay);
+    }
+
+    // Watchdog: verifica periodicamente se o recognizer precisa ser "acordado"
+    private final Runnable watchdog = new Runnable() {
+        @Override
+        public void run() {
             if (ativo) {
-                try { recognizer.startListening(recIntent); } catch (Exception ignored) {}
-                handler.postDelayed(this, 4000);
+                try {
+                    // Tenta iniciar novamente apenas para garantir
+                    // (O SpeechRecognizer ignora se já estiver ouvindo)
+                    if (recognizer != null) recognizer.startListening(recIntent);
+                } catch (Exception ignored) {}
+                handler.postDelayed(this, 5000); // Verifica a cada 5 seg
             }
         }
     };
 
     private void processarComando(String comando) {
-        // Broadcast local
-        Intent i = new Intent("IA_COMANDO");
-        i.putExtra("texto", comando);
-        i.setPackage(getPackageName());
-        sendBroadcast(i);
+        // 1. Envia comando para as Activities (Table ou WebViewPG) processarem campos e navegação
+        Intent intent = new Intent("IA_COMANDO");
+        intent.putExtra("texto", comando);
+        intent.setPackage(getPackageName());
+        sendBroadcast(intent);
 
-        // --- comandos diretos ---
-        if (comando.contains("segundo plano")) {
-            Intent telaHome = new Intent(Intent.ACTION_MAIN);
-            telaHome.addCategory(Intent.CATEGORY_HOME);
-            telaHome.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(telaHome);
+        // --- Comandos Globais (Gerenciados pelo Serviço) ---
+
+        // A. Segundo Plano
+        if (comando.contains("segundo plano") || comando.contains("minimizar")) {
+            Intent home = new Intent(Intent.ACTION_MAIN);
+            home.addCategory(Intent.CATEGORY_HOME);
+            home.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(home);
             return;
         }
 
-        if (comando.contains("abrir vigilancia") || comando.contains("abrir vigilância")
-                || comando.equals("vigilancia") || comando.equals("vigilância")) {
+        // B. Abrir Vigilância (Traz o app para frente)
+        if (comando.contains("abrir vigilancia") ||
+                comando.contains("abrir vigilância") ||
+                comando.equals("vigilancia") ||
+                comando.equals("vigilância")) {
             abrirAppVigilancia();
-        } else if (comando.equals("encerrar") || comando.contains("sair") || comando.contains("encerrar aplicativo")) {
+            return;
+        }
+
+        // C. Encerrar Tudo
+        if (comando.equals("encerrar") ||
+                comando.contains("sair") ||
+                comando.contains("fechar aplicativo") ||
+                comando.contains("encerrar aplicativo")) {
+
+            // Avisa activities para fecharem
             Intent fechar = new Intent("FECHAR_APP");
+            fechar.setPackage(getPackageName());
             sendBroadcast(fechar);
-        } else if (comando.contains("encerrar assistente") || comando.contains("desligar assistente")
-                || comando.contains("parar assistente") || comando.contains("desativar assistente")) {
+
             pararAssistente();
+            return;
+        }
+
+        // D. Parar Apenas o Assistente
+        if (comando.contains("encerrar assistente") ||
+                comando.contains("desligar assistente") ||
+                comando.contains("parar assistente") ||
+                comando.contains("desativar assistente")) {
+
+            pararAssistente();
+
+            // Avisa a Table para atualizar o botão/ícone
+            Intent desligado = new Intent("ASSISTENTE_DESATIVADO");
+            desligado.setPackage(getPackageName());
+            sendBroadcast(desligado);
+
             Toast.makeText(this, "Assistente encerrado", Toast.LENGTH_SHORT).show();
         }
     }
 
+    // --- CORREÇÃO DO COMANDO ABRIR VIGILÂNCIA ---
     private void abrirAppVigilancia() {
         try {
-            PackageManager pm = getPackageManager();
-            Intent launchIntent = pm.getLaunchIntentForPackage(getPackageName());
-            if (launchIntent != null) {
-                // mantém task existente; se não existir, reabre app
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-                startActivity(launchIntent);
-                Toast.makeText(this, "🔹 Abrindo Vigilância", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(this, "Não foi possível abrir o aplicativo.", Toast.LENGTH_SHORT).show();
+            // Verifica permissão "Sobrepor a outros apps" (Android 6.0+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                Toast.makeText(this, "Para abrir por voz, permita 'Sobrepor a outros apps'", Toast.LENGTH_LONG).show();
+
+                // Abre a tela de configuração para o usuário dar permissão
+                Intent intentSettings = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + getPackageName()));
+                intentSettings.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intentSettings);
+                return;
             }
+
+            // Abre a Activity Table diretamente
+            Intent i = new Intent(this, Table.class);
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            i.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT); // Traz para frente se já existir
+            i.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(i);
+
         } catch (Exception e) {
-            Toast.makeText(this, "Erro ao abrir: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            e.printStackTrace();
+            Toast.makeText(this, "Erro ao abrir: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 
     private void pararAssistente() {
         ativo = false;
-        handler.removeCallbacks(verificador);
+        handler.removeCallbacks(watchdog);
         try {
             if (recognizer != null) {
                 recognizer.cancel();
                 recognizer.destroy();
+                recognizer = null;
             }
         } catch (Exception ignored) {}
         stopForeground(true);
         stopSelf();
     }
 
-    @Override public int onStartCommand(@Nullable Intent intent, int flags, int startId) { return START_STICKY; }
-    @Override public void onDestroy() { pararAssistente(); super.onDestroy(); }
-    @Nullable @Override public IBinder onBind(Intent intent) { return null; }
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) { return null; }
+
+    @Override
+    public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
+        // START_STICKY faz o serviço tentar reiniciar se o Android matá-lo por falta de memória
+        return START_STICKY;
+    }
+
+    @Override
+    public void onDestroy() {
+        pararAssistente();
+        super.onDestroy();
+    }
 }

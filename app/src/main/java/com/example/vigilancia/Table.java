@@ -30,7 +30,6 @@ import androidx.core.content.ContextCompat;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -47,9 +46,11 @@ public class Table extends AppCompatActivity {
     private FloatingActionButton fabVoice;
     private ArrayAdapter<String> adapter;
     private List<String> roteiroList;
-    private BroadcastReceiver receiverIA;
 
-    private boolean assistenteAtivo;
+    private BroadcastReceiver receiverIA;
+    private BroadcastReceiver desligadoReceiver;
+
+    private boolean assistenteAtivo = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,17 +76,14 @@ public class Table extends AppCompatActivity {
             @Override public void afterTextChanged(Editable s){}
         });
 
-        // === Clique em item da lista ===
         listView.setOnItemClickListener((p, v, pos, id) -> {
             String item = adapter.getItem(pos);
             if (item != null && item.equalsIgnoreCase("Roteiro 1")) {
-                // 🔹 Se for o "Roteiro 1", abre diretamente o link desejado dentro da WebView
                 Intent i = new Intent(this, WebViewPG.class);
                 i.putExtra("url_custom", "https://protocolo.rondonopolis.mt.gov.br/embed/form/6");
                 i.putExtra("roteiro_nome", "Roteiro 1");
                 startActivity(i);
             } else {
-                // 🔹 Outros roteiros seguem comportamento padrão
                 abrirRoteiro(item);
             }
         });
@@ -99,6 +97,7 @@ public class Table extends AppCompatActivity {
             prefs.edit().putBoolean(KEY_SNACKBAR, true).apply();
         }
 
+        // Receiver de comandos de voz (Local)
         receiverIA = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -109,7 +108,15 @@ public class Table extends AppCompatActivity {
         };
         registrarReceiverCompat(receiverIA, new IntentFilter("IA_COMANDO"));
 
-        // fechar app
+        // Receiver para saber se o serviço parou
+        desligadoReceiver = new BroadcastReceiver() {
+            @Override public void onReceive(Context ctx, Intent i){
+                assistenteAtivo = false;
+            }
+        };
+        registrarReceiverCompat(desligadoReceiver, new IntentFilter("ASSISTENTE_DESATIVADO"));
+
+        // Receiver para fechar app
         BroadcastReceiver fecharReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -121,14 +128,15 @@ public class Table extends AppCompatActivity {
 
     private boolean isServiceRunning(Class<?> serviceClass) {
         ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-        for (ActivityManager.RunningServiceInfo s : am.getRunningServices(Integer.MAX_VALUE)) {
-            if (serviceClass.getName().equals(s.service.getClassName())) return true;
+        if (am != null) {
+            for (ActivityManager.RunningServiceInfo s : am.getRunningServices(Integer.MAX_VALUE)) {
+                if (serviceClass.getName().equals(s.service.getClassName())) return true;
+            }
         }
         return false;
     }
 
     private void alternarAssistente() {
-        assistenteAtivo = isServiceRunning(VoiceService.class);
         if (assistenteAtivo) pararIA(); else pedirPermissaoMicrofone();
     }
 
@@ -154,7 +162,11 @@ public class Table extends AppCompatActivity {
     private void iniciarIA(){
         try{
             Intent serviceIntent = new Intent(this, VoiceService.class);
-            startService(serviceIntent);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent);
+            } else {
+                startService(serviceIntent);
+            }
             Toast.makeText(this,"🎤 Assistente ativado",Toast.LENGTH_SHORT).show();
             assistenteAtivo = true;
         }catch(Exception e){
@@ -176,21 +188,23 @@ public class Table extends AppCompatActivity {
         Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), "", Snackbar.LENGTH_INDEFINITE);
         ViewGroup layout = (ViewGroup) snackbar.getView();
         layout.setPadding(0, 0, 0, 0);
+
         View custom = getLayoutInflater().inflate(R.layout.snackbar_ia, null);
         AppCompatButton btnNao = custom.findViewById(R.id.btnNao);
         AppCompatButton btnAtivar = custom.findViewById(R.id.btnAtivar);
+
         btnNao.setOnClickListener(v -> snackbar.dismiss());
         btnAtivar.setOnClickListener(v -> {
             snackbar.dismiss();
             pedirPermissaoMicrofone();
         });
+
         layout.addView(custom, 0);
         snackbar.show();
     }
 
-    // === Comando por voz (inclui "abrir roteiro 1") ===
     private void processarComando(String comando){
-        // --- Caso específico: abrir roteiro 1 dentro da WebView ---
+        // Roteiro 1 com link especial
         if (comando.contains("abrir roteiro 1")) {
             Intent i = new Intent(this, WebViewPG.class);
             i.putExtra("url_custom", "https://protocolo.rondonopolis.mt.gov.br/embed/form/6");
@@ -199,21 +213,33 @@ public class Table extends AppCompatActivity {
             return;
         }
 
-        // --- Demais comandos padrão ---
+        // Outros roteiros
         if(comando.contains("abrir roteiro")){
             for(String roteiro:roteiroList){
                 String numero=roteiro.replaceAll("\\D+","");
                 if(comando.contains(numero)){abrirRoteiro(roteiro);return;}
             }
         }
-        if(comando.contains("segundo plano")){ moveTaskToBack(true); return; }
+
+        // Segundo plano (minimizar)
+        if(comando.contains("segundo plano") || comando.contains("minimizar")){
+            moveTaskToBack(true);
+            return;
+        }
+
+        // Parar assistente
         if(comando.contains("encerrar assistente")
                 || comando.contains("desligar assistente")
-                || comando.contains("desativar assistente")
-                || comando.contains("parar assistente")){ pararIA(); return; }
+                || comando.contains("parar assistente")){
+            pararIA();
+            return;
+        }
 
+        // Fechar app
         if(comando.equals("encerrar") || comando.contains("encerrar aplicativo") || comando.contains("sair")){
-            pararIA(); finishAffinity(); return;
+            pararIA();
+            finishAffinity();
+            return;
         }
     }
 
@@ -227,10 +253,8 @@ public class Table extends AppCompatActivity {
         try {
             if (Build.VERSION.SDK_INT >= 33)
                 registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
-            else if (Build.VERSION.SDK_INT >= 26) {
-                Method m = Context.class.getMethod("registerReceiver", BroadcastReceiver.class, IntentFilter.class, int.class);
-                m.invoke(this, receiver, filter, Context.RECEIVER_NOT_EXPORTED);
-            } else registerReceiver(receiver, filter);
+            else
+                registerReceiver(receiver, filter);
         } catch (Exception e) { registerReceiver(receiver, filter); }
     }
 
@@ -257,8 +281,14 @@ public class Table extends AppCompatActivity {
                 "Roteiro 128","Roteiro 129","Roteiro 130","Roteiro 131","Roteiro 132",
                 "Roteiro 133","Roteiro 134","Roteiro 135","Roteiro 136","Roteiro 137",
                 "Roteiro 138","Roteiro 139","Roteiro 140","Roteiro 141","Roteiro 142",
-                "Roteiro 143","Roteiro 144"));
+                "Roteiro 143","Roteiro 144"
+        ));
     }
 
-    @Override protected void onDestroy(){ super.onDestroy(); try{ unregisterReceiver(receiverIA);}catch(Exception ignored){} }
+    @Override
+    protected void onDestroy(){
+        super.onDestroy();
+        try{ unregisterReceiver(receiverIA);}catch(Exception ignored){}
+        try{ unregisterReceiver(desligadoReceiver);}catch(Exception ignored){}
+    }
 }

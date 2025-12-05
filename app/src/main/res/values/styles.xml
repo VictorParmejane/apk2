@@ -1,16 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <!-- Tema principal do app -->
+    <!-- Tema Azul sem Barra de Título Branca -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
-        <!-- Remove completamente a status bar -->
-        <item name="android:windowFullscreen">true</item>
-
-        <!-- Apenas define a cor de fundo da área de status caso algo forçado apareça -->
-        <item name="android:statusBarColor">@android:color/black</item>
-
-        <!-- Evita moldura ou sobra de action bar -->
         <item name="android:windowNoTitle">true</item>
-    </style>
+        <item name="android:windowActionBar">false</item>
 
+        <!-- NÃO use Fullscreen=true, senão a barra azul some. -->
+        <item name="android:windowFullscreen">false</item>
+
+        <!-- Define a cor da barra de status (Bateria/Relógio) para o seu Azul -->
+        <item name="android:statusBarColor">#0d6efd</item>
+
+        <!-- Define a cor dos ícones da barra (branco para contrastar com azul) -->
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
 </resources>

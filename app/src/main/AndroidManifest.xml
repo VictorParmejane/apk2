@@ -3,14 +3,12 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.example.vigilancia">
 
-    <!-- 🔹 Permissões necessárias -->
+    <!-- Permissões -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- 🔹 ForegroundService com uso de microfone -->
-    <uses-permission
-        android:name="android.permission.FOREGROUND_SERVICE"
-        tools:ignore="ForegroundServicesPolicy" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/> <!-- ESSENCIAL PARA ABRIR O APP POR VOZ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:ignore="ForegroundServicesPolicy" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
     <application
@@ -21,18 +19,14 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
-        <!-- 🔹 Suas telas -->
-        <activity
-            android:name=".WebViewPG"
-            android:exported="false" />
+        <!-- Activity do WebView -->
+        <activity android:name=".WebViewPG" android:exported="false" />
 
+        <!-- Activity TABLE agora é a PRINCIPAL (Launcher) -->
         <activity
             android:name=".Table"
-            android:exported="false" />
-
-        <activity
-            android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:theme="@style/AppTheme">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -40,10 +34,9 @@
             </intent-filter>
         </activity>
 
-        <!-- 🔹 Serviço global de voz -->
-        <service
-            android:name=".VoiceService"
-            android:exported="false"
-            android:foregroundServiceType="microphone" />
+        <!-- Se MainActivity não for usada, pode remover ou deixar sem intent-filter -->
+        <activity android:name=".MainActivity" android:exported="false" />
+
+        <service android:name=".VoiceService" android:exported="false" android:foregroundServiceType="microphone" />
     </application>
 </manifest>

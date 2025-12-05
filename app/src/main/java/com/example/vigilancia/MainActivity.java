@@ -7,8 +7,6 @@ import android.view.View;
 import android.view.WindowInsetsController;
 import android.widget.TextView;
 
-import androidx.activity.ComponentActivity;
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
@@ -24,13 +22,13 @@ public class MainActivity extends AppCompatActivity {
 
         loadingText = findViewById(R.id.loadingText);
 
-        // ==== 🔹 Aguarda o layout carregar completamente e então ativa modo imersivo ====
+        // ==== 🔹 Aguarda o layout carregar e ativa modo imersivo ====
         getWindow().getDecorView().post(this::enterImmersiveMode);
 
         // === 🔹 Animação "Loading…" ===
         handler.postDelayed(loadingRunnable, 500);
 
-        // === 🔹 Após 3 s, abrir a Table ===
+        // === 🔹 Após 3s, abrir a Table ===
         new Handler().postDelayed(() -> {
             Intent intent = new Intent(MainActivity.this, Table.class);
             startActivity(intent);
@@ -50,7 +48,7 @@ public class MainActivity extends AppCompatActivity {
                         WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
             }
         } else {
-            // API < 30
+            // API < 30
             decorView.setSystemUiVisibility(
                     View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                             | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -65,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (hasFocus) enterImmersiveMode();  // reaplica se o usuário sair e voltar
+        if (hasFocus) enterImmersiveMode();
     }
 
     private final Runnable loadingRunnable = new Runnable() {

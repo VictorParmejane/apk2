@@ -1,12 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main"
     android:orientation="vertical"
     android:gravity="center"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#FFFFFF">
+    android:background="#FFFFFF"
+    tools:context=".MainActivity">
+
+    <!--
+      O background acima define a cor da tela inteira.
+      Se quiser preto, mude #FFFFFF para #000000
+    -->
 
     <TextView
         android:id="@+id/loadingText"
@@ -14,6 +21,7 @@
         android:layout_height="wrap_content"
         android:text="Loading"
         android:textSize="24sp"
-        android:textColor="#000000" />
+        android:textColor="#000000"
+        tools:ignore="HardcodedText" />
 
 </LinearLayout>
