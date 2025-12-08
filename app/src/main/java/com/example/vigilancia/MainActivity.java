@@ -7,8 +7,6 @@ import android.view.View;
 import android.view.WindowInsetsController;
 import android.widget.TextView;
 
-import androidx.activity.ComponentActivity;
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
@@ -24,13 +22,13 @@ public class MainActivity extends AppCompatActivity {
 
         loadingText = findViewById(R.id.loadingText);
 
-        // ==== 🔹 Aguarda o layout carregar completamente e então ativa modo imersivo ====
+        // Ativa modo imersivo
         getWindow().getDecorView().post(this::enterImmersiveMode);
 
-        // === 🔹 Animação "Loading…" ===
+        // Animação "Loading..."
         handler.postDelayed(loadingRunnable, 500);
 
-        // === 🔹 Após 3 s, abrir a Table ===
+        // Após 3s, abrir a Table e encerrar esta tela
         new Handler().postDelayed(() -> {
             Intent intent = new Intent(MainActivity.this, Table.class);
             startActivity(intent);
@@ -40,32 +38,19 @@ public class MainActivity extends AppCompatActivity {
 
     private void enterImmersiveMode() {
         View decorView = getWindow().getDecorView();
-
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             WindowInsetsController controller = decorView.getWindowInsetsController();
             if (controller != null) {
-                controller.hide(android.view.WindowInsets.Type.statusBars()
-                        | android.view.WindowInsets.Type.navigationBars());
-                controller.setSystemBarsBehavior(
-                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                controller.hide(android.view.WindowInsets.Type.statusBars() | android.view.WindowInsets.Type.navigationBars());
+                controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
             }
         } else {
-            // API < 30
             decorView.setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                            | View.SYSTEM_UI_FLAG_FULLSCREEN
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+                            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+                            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN
             );
         }
-    }
-
-    @Override
-    public void onWindowFocusChanged(boolean hasFocus) {
-        super.onWindowFocusChanged(hasFocus);
-        if (hasFocus) enterImmersiveMode();  // reaplica se o usuário sair e voltar
     }
 
     private final Runnable loadingRunnable = new Runnable() {

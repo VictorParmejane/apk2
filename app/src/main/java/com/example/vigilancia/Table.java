@@ -1,12 +1,11 @@
 package com.example.vigilancia;
-import android.util.Log;
+
 import android.Manifest;
 import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
@@ -30,29 +29,20 @@ import androidx.core.content.ContextCompat;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 
-/**
- * Tela principal com a lista de roteiros e controle do assistente.
- */
 public class Table extends AppCompatActivity {
 
-    private static final int REQ_MIC = 10;
-    private static final String PREFS = "AppPrefs";
-    private static final String KEY_SNACKBAR = "snackbar_shown";
-
+    private static final int REQ_PERMS = 10;
     private EditText searchField;
     private ListView listView;
     private FloatingActionButton fabVoice;
     private ArrayAdapter<String> adapter;
     private List<String> roteiroList;
-    private BroadcastReceiver receiverIA;
-
-    private boolean assistenteAtivo;
+    private BroadcastReceiver receiverIA, fecharReceiver;
+    private boolean assistenteAtivo = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,254 +54,149 @@ public class Table extends AppCompatActivity {
         fabVoice = findViewById(R.id.fabVoice);
 
         criarListaCompleta();
-
         adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, roteiroList);
         listView.setAdapter(adapter);
 
         assistenteAtivo = isServiceRunning(PorcupineWakeService.class);
+        atualizarIconeFab();
 
         searchField.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                adapter.getFilter().filter(s);
-            }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { adapter.getFilter().filter(s); }
             @Override public void afterTextChanged(Editable s) {}
         });
 
         listView.setOnItemClickListener((p, v, pos, id) -> {
             String item = adapter.getItem(pos);
             if (item != null && item.equalsIgnoreCase("Roteiro 1")) {
-                Intent i = new Intent(this, WebViewPG.class);
-                i.putExtra("url_custom", "https://protocolo.rondonopolis.mt.gov.br/embed/form/6");
-                i.putExtra("roteiro_nome", "Roteiro 1");
-                startActivity(i);
+                abrirWebView("Roteiro 1", "https://protocolo.rondonopolis.mt.gov.br/embed/form/6");
             } else {
-                abrirRoteiro(item);
+                abrirWebView(item, null);
             }
         });
 
         fabVoice.setOnClickListener(v -> alternarAssistente());
 
-        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        boolean exibido = prefs.getBoolean(KEY_SNACKBAR, false);
-        if (!exibido) {
-            mostrarSnackbarInicial();
-            prefs.edit().putBoolean(KEY_SNACKBAR, true).apply();
-        }
-
+        // Receivers
         receiverIA = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
+            @Override public void onReceive(Context context, Intent intent) {
                 String comando = intent.getStringExtra("texto");
-                if (comando != null)
-                    processarComando(comando.toLowerCase(Locale.ROOT));
+                if (comando != null) processarComando(comando);
             }
         };
         registrarReceiverCompat(receiverIA, new IntentFilter("IA_COMANDO"));
 
-        // Fechar app quando receber broadcast FECHAR_APP
-        BroadcastReceiver fecharReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                finishAffinity();
-            }
+        fecharReceiver = new BroadcastReceiver() {
+            @Override public void onReceive(Context context, Intent intent) { finishAffinity(); }
         };
         registrarReceiverCompat(fecharReceiver, new IntentFilter("FECHAR_APP"));
+
+        verificarPermissaoSobreposicao();
     }
 
-    // ---------------------------------------------------------
-    // ASSISTENTE DE VOZ
-    // ---------------------------------------------------------
-
-    private boolean isServiceRunning(Class<?> serviceClass) {
-        ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-        for (ActivityManager.RunningServiceInfo s : am.getRunningServices(Integer.MAX_VALUE)) {
-            if (serviceClass.getName().equals(s.service.getClassName()))
-                return true;
+    private void verificarPermissaoSobreposicao() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            Snackbar.make(listView, "Permita sobreposição para comandos em 2º plano", Snackbar.LENGTH_INDEFINITE)
+                    .setAction("Permitir", v -> {
+                        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
+                        startActivity(intent);
+                    }).show();
         }
-        return false;
     }
 
     private void alternarAssistente() {
-        assistenteAtivo = isServiceRunning(PorcupineWakeService.class);
-        if (assistenteAtivo) pararIA(); else pedirPermissaoMicrofone();
+        if (assistenteAtivo) pararIA();
+        else pedirPermissoes();
     }
 
-    private void pedirPermissaoMicrofone() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-                == PackageManager.PERMISSION_GRANTED) {
+    private void pedirPermissoes() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             iniciarIA();
         } else {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.RECORD_AUDIO}, REQ_MIC);
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, REQ_PERMS);
         }
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQ_MIC &&
-                grantResults.length > 0 &&
-                grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+        if (requestCode == REQ_PERMS && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             iniciarIA();
-        } else {
-            Toast.makeText(this, "Permissão de microfone negada.", Toast.LENGTH_LONG).show();
-            Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-            i.setData(Uri.parse("package:" + getPackageName()));
-            startActivity(i);
         }
     }
 
     private void iniciarIA() {
-        try {
-            Intent serviceIntent = new Intent(this, PorcupineWakeService.class);
-            startService(serviceIntent);
-            Toast.makeText(this, "🎙 Assistente aguardando hotword", Toast.LENGTH_SHORT).show();
-            assistenteAtivo = true;
-        } catch (Exception e) {
-            Toast.makeText(this, "Erro ao iniciar assistente: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
+        Intent i = new Intent(this, PorcupineWakeService.class);
+        ContextCompat.startForegroundService(this, i);
+        assistenteAtivo = true;
+        atualizarIconeFab();
+        Toast.makeText(this, "Modo Sentinela Ativado", Toast.LENGTH_SHORT).show();
     }
 
     private void pararIA() {
-        try {
-            Log.i("Table", "Parando serviços de voz...");
-            stopService(new Intent(this, VoiceService.class));
-            stopService(new Intent(this, PorcupineWakeService.class));
-            Toast.makeText(this, "❌ Assistente desativado", Toast.LENGTH_SHORT).show();
-            assistenteAtivo = false;
-        } catch (Exception e) {
-            Toast.makeText(this, "Erro ao parar assistente: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
+        stopService(new Intent(this, PorcupineWakeService.class));
+        stopService(new Intent(this, VoiceService.class)); // Garante que o ouvinte também pare
+        assistenteAtivo = false;
+        atualizarIconeFab();
+        Toast.makeText(this, "Assistente Desativado", Toast.LENGTH_SHORT).show();
     }
 
-    // ---------------------------------------------------------
-    // INTERFACE
-    // ---------------------------------------------------------
-
-    private void mostrarSnackbarInicial() {
-        Snackbar snackbar = Snackbar.make(findViewById(android.R.id.content), "", Snackbar.LENGTH_INDEFINITE);
-        ViewGroup layout = (ViewGroup) snackbar.getView();
-        layout.setPadding(0, 0, 0, 0);
-        View custom = getLayoutInflater().inflate(R.layout.snackbar_ia, null);
-        AppCompatButton btnNao = custom.findViewById(R.id.btnNao);
-        AppCompatButton btnAtivar = custom.findViewById(R.id.btnAtivar);
-        btnNao.setOnClickListener(v -> snackbar.dismiss());
-        btnAtivar.setOnClickListener(v -> {
-            snackbar.dismiss();
-            pedirPermissaoMicrofone();
-        });
-        layout.addView(custom, 0);
-        snackbar.show();
+    private void atualizarIconeFab() {
+        fabVoice.setImageDrawable(ContextCompat.getDrawable(this,
+                assistenteAtivo ? android.R.drawable.ic_media_pause : android.R.drawable.ic_btn_speak_now));
     }
-
-    // ---------------------------------------------------------
-    // COMANDOS DE VOZ
-    // ---------------------------------------------------------
 
     private void processarComando(String comando) {
-        try {
-            if (comando.contains("abrir roteiro 1")) {
-                Intent i = new Intent(this, WebViewPG.class);
-                i.putExtra("url_custom", "https://protocolo.rondonopolis.mt.gov.br/embed/form/6");
-                i.putExtra("roteiro_nome", "Roteiro 1");
-                startActivity(i);
-                return;
-            }
-
-            if (comando.contains("abrir roteiro")) {
-                for (String roteiro : roteiroList) {
-                    String numero = roteiro.replaceAll("\\D+", "");
-                    if (comando.contains(numero)) {
-                        abrirRoteiro(roteiro);
-                        return;
-                    }
+        if (comando.contains("abrir roteiro")) {
+            for (String r : roteiroList) {
+                String num = r.replaceAll("\\D+", "");
+                if (comando.contains(num)) {
+                    if (r.equals("Roteiro 1")) abrirWebView("Roteiro 1", "https://protocolo.rondonopolis.mt.gov.br/embed/form/6");
+                    else abrirWebView(r, null);
+                    return;
                 }
             }
-
-            if (comando.contains("abrir vigilancia") || comando.contains("abrir vigilância")) {
-                Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
-                if (launch != null) {
-                    launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-                    startActivity(launch);
-                }
-                return;
-            }
-
-            if (comando.contains("segundo plano")) {
-                moveTaskToBack(true);
-                return;
-            }
-
-            if (comando.contains("encerrar assistente")
-                    || comando.contains("desligar assistente")
-                    || comando.contains("desativar assistente")
-                    || comando.contains("parar assistente")) {
-                pararIA();
-                return;
-            }
-
-            if (comando.equals("encerrar")
-                    || comando.contains("encerrar aplicativo")
-                    || comando.contains("sair")) {
-                pararIA();
-                finishAffinity();
-            }
-        } catch (Exception e) {
-            Toast.makeText(this, "Erro comando: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+        if (comando.contains("parar assistente") || comando.contains("desligar assistente")) {
+            pararIA();
         }
     }
 
-    private void abrirRoteiro(String nome) {
+    private void abrirWebView(String nome, String url) {
         Intent i = new Intent(this, WebViewPG.class);
         i.putExtra("roteiro_nome", nome);
+        if (url != null) i.putExtra("url_custom", url);
         startActivity(i);
+    }
+
+    private boolean isServiceRunning(Class<?> serviceClass) {
+        ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        for (ActivityManager.RunningServiceInfo s : am.getRunningServices(Integer.MAX_VALUE)) {
+            if (serviceClass.getName().equals(s.service.getClassName())) return true;
+        }
+        return false;
     }
 
     private void registrarReceiverCompat(BroadcastReceiver receiver, IntentFilter filter) {
         try {
-            if (Build.VERSION.SDK_INT >= 33)
-                registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
-            else if (Build.VERSION.SDK_INT >= 26) {
-                Method m = Context.class.getMethod("registerReceiver",
-                        BroadcastReceiver.class, IntentFilter.class, int.class);
-                m.invoke(this, receiver, filter, Context.RECEIVER_NOT_EXPORTED);
-            } else registerReceiver(receiver, filter);
-        } catch (Exception e) {
-            registerReceiver(receiver, filter);
-        }
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            else registerReceiver(receiver, filter);
+        } catch (Exception e) { registerReceiver(receiver, filter); }
     }
-
-    // ---------------------------------------------------------
-    // ROTEIROS MANTIDOS (COMPLETA)
-    // ---------------------------------------------------------
 
     private void criarListaCompleta() {
         roteiroList = new ArrayList<>(Arrays.asList(
-                "Roteiro 1","Roteiro 2","Roteiro 3","Roteiro 4","Roteiro 5",
-                "Roteiro 6","Roteiro 7","Roteiro 8","Roteiro 9","Roteiro 10",
-                "Roteiro 11","Roteiro 12","Roteiro 13","Roteiro 14","Roteiro 15",
-                "Roteiro 16","Roteiro 17","Roteiro 18","Roteiro 19","Roteiro 20",
-                "Roteiro 21","Roteiro 22","Roteiro 23","Roteiro 24","Roteiro 25",
-                "Roteiro 26","Roteiro 27","Roteiro 28","Roteiro 29","Roteiro 30",
-                "Roteiro 31","Roteiro 32","Roteiro 33","Roteiro 34","Roteiro 35",
-                "Roteiro 36","Roteiro 37","Roteiro 38","Roteiro 39","Roteiro 40",
-                "Roteiro 41","Roteiro 42","Roteiro 43","Roteiro 44","Roteiro 45",
-                "Roteiro 46","Roteiro 47","Roteiro 48","Roteiro 49","Roteiro 50",
-                "Roteiro 62","Roteiro 63","Roteiro 64","Roteiro 65","Roteiro 66",
-                "Roteiro 67","Roteiro 68","Roteiro 69","Roteiro 73","Roteiro 74",
-                "Roteiro 75","Roteiro 76","Roteiro 77","Roteiro 81","Roteiro 82",
-                "Roteiro 85","Roteiro 89","Roteiro 90","Roteiro 91","Roteiro 92",
-                "Roteiro 93","Roteiro 94","Roteiro 95","Roteiro 96","Roteiro 97",
-                "Roteiro 98","Roteiro 99","Roteiro 101 - ambulâncias","Roteiro 114",
-                "Roteiro 118","Roteiro 119","Roteiro 120","Roteiro 121","Roteiro 122",
-                "Roteiro 123","Roteiro 124","Roteiro 125 Consultórios","Roteiro 127",
-                "Roteiro 128","Roteiro 129","Roteiro 130","Roteiro 131","Roteiro 132",
-                "Roteiro 133","Roteiro 134","Roteiro 135","Roteiro 136","Roteiro 137",
-                "Roteiro 138","Roteiro 139","Roteiro 140","Roteiro 141","Roteiro 142",
-                "Roteiro 143","Roteiro 144"
+                "Roteiro 1","Roteiro 2","Roteiro 3","Roteiro 4","Roteiro 5","Roteiro 6","Roteiro 7","Roteiro 8","Roteiro 9","Roteiro 10",
+                "Roteiro 11","Roteiro 12","Roteiro 13","Roteiro 14","Roteiro 15","Roteiro 16","Roteiro 17","Roteiro 18","Roteiro 19","Roteiro 20",
+                "Roteiro 21","Roteiro 22","Roteiro 23","Roteiro 24","Roteiro 25","Roteiro 26","Roteiro 27","Roteiro 28","Roteiro 29","Roteiro 30",
+                "Roteiro 31","Roteiro 32","Roteiro 33","Roteiro 34","Roteiro 35","Roteiro 36","Roteiro 37","Roteiro 38","Roteiro 39","Roteiro 40",
+                "Roteiro 41","Roteiro 42","Roteiro 43","Roteiro 44","Roteiro 45","Roteiro 46","Roteiro 47","Roteiro 48","Roteiro 49","Roteiro 50",
+                "Roteiro 62","Roteiro 63","Roteiro 64","Roteiro 65","Roteiro 66","Roteiro 67","Roteiro 68","Roteiro 69","Roteiro 73","Roteiro 74",
+                "Roteiro 75","Roteiro 76","Roteiro 77","Roteiro 81","Roteiro 82","Roteiro 85","Roteiro 89","Roteiro 90","Roteiro 91","Roteiro 92",
+                "Roteiro 93","Roteiro 94","Roteiro 95","Roteiro 96","Roteiro 97","Roteiro 98","Roteiro 99","Roteiro 101 - ambulâncias","Roteiro 114",
+                "Roteiro 118","Roteiro 119","Roteiro 120","Roteiro 121","Roteiro 122","Roteiro 123","Roteiro 124","Roteiro 125 Consultórios","Roteiro 127",
+                "Roteiro 128","Roteiro 129","Roteiro 130","Roteiro 131","Roteiro 132","Roteiro 133","Roteiro 134","Roteiro 135","Roteiro 136","Roteiro 137",
+                "Roteiro 138","Roteiro 139","Roteiro 140","Roteiro 141","Roteiro 142","Roteiro 143","Roteiro 144"
         ));
     }
 
@@ -319,5 +204,6 @@ public class Table extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         try { unregisterReceiver(receiverIA); } catch (Exception ignored) {}
+        try { unregisterReceiver(fecharReceiver); } catch (Exception ignored) {}
     }
 }

@@ -1,16 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="#FFFFFF"
+    tools:context=".Table">
 
     <EditText
         android:id="@+id/searchField"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Pesquisar Roteiro..."
+        android:inputType="text"
+        android:maxLines="1"
         android:drawableStart="@android:drawable/ic_menu_search"
-        android:padding="10dp" />
+        android:drawablePadding="10dp"
+        android:padding="12dp"
+        android:background="#F0F0F0"
+        android:layout_margin="8dp" />
 
     <ListView
         android:id="@+id/listView"
@@ -18,7 +26,9 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:divider="@android:color/darker_gray"
-        android:dividerHeight="1dp" />
+        android:dividerHeight="0.5dp"
+        android:paddingBottom="80dp"
+        android:clipToPadding="false"/>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabVoice"
@@ -26,9 +36,11 @@
         android:layout_height="wrap_content"
         android:layout_alignParentEnd="true"
         android:layout_alignParentBottom="true"
-        android:layout_margin="16dp"
+        android:layout_margin="24dp"
+        android:contentDescription="Assistente de Voz"
         app:srcCompat="@android:drawable/ic_btn_speak_now"
         app:tint="@android:color/white"
-        app:backgroundTint="#0d6efd" />
+        app:backgroundTint="#0d6efd"
+        app:elevation="6dp" />
 
 </RelativeLayout>

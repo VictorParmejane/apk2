@@ -1,16 +1,20 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-
-    <!-- Tema principal do app -->
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Tema Principal -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
-        <!-- Remove completamente a status bar -->
-        <item name="android:windowFullscreen">true</item>
-
-        <!-- Apenas define a cor de fundo da área de status caso algo forçado apareça -->
-        <item name="android:statusBarColor">@android:color/black</item>
-
-        <!-- Evita moldura ou sobra de action bar -->
+        <!-- Remove qualquer barra nativa antiga -->
         <item name="android:windowNoTitle">true</item>
-    </style>
+        <item name="android:windowActionBar">false</item>
 
+        <!-- Cores Sólidas -->
+        <item name="colorPrimary">#0d6efd</item>
+        <item name="colorPrimaryDark">#0d6efd</item> <!-- Mesma cor para não ter degrader -->
+        <item name="colorAccent">#0d6efd</item>
+
+        <!-- Barra de Status (Onde fica a bateria) -->
+        <item name="android:statusBarColor">#0d6efd</item>
+        <item name="android:windowLightStatusBar">false</item> <!-- Ícones brancos -->
+
+        <!-- Evita que o layout "pule" para baixo criando espaço branco -->
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="o_mr1">shortEdges</item>
+    </style>
 </resources>
